@@ -12,11 +12,12 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@capacitor/android": "^7.6.11",
-    "@capacitor/app": "^7.1.2",
-    "@capacitor/core": "^7.6.11",
-    "@capacitor/filesystem": "^7.1.9",
-    "@capacitor/share": "^7.0.4",
+    "@capacitor/android": "^8.6.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.3",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
+    "@capgo/capacitor-health": "^8.13.0",
     "autoprefixer": "^10.7.0",
     "lucide-react": "^1.79.0",
     "postcss": "^8.5.33",
@@ -26,6 +27,6 @@
     "vite": "^6.4.6"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.6.11"
+    "@capacitor/cli": "^8.6.3"
   }
 }

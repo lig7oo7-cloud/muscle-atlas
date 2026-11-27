@@ -33,6 +33,8 @@ jobs:
         run: |
           npm install --no-save @capacitor/assets@3
           npx cap add android
+          # 헬스 커넥트는 Android 8.0(API 26) 이상 필요
+          sed -i 's/minSdkVersion = 24/minSdkVersion = 26/' android/variables.gradle
           mkdir -p assets
           cp public/icon512.png assets/icon.png
           npx capacitor-assets generate --android --iconBackgroundColor '#192827' --splashBackgroundColor '#f5f4ef' || echo "icon generation skipped"
