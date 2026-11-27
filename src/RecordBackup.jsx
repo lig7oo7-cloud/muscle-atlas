@@ -2,6 +2,7 @@ import React,{useState} from 'react';
 import {Cloud,Download,Upload} from 'lucide-react';
 import {combineBackup,currentBackup,validatedBackup} from './recordBackup';
 import {writeRestored} from './recordStorage';
+import {isNative,shareBackupFile} from './native';
 
 export function RecordBackup({onRestore}){
   const [pending,setPending]=useState(null);
@@ -17,12 +18,22 @@ export function RecordBackup({onRestore}){
       setStatus(granted?'브라우저의 자동 정리에서 운동 기록 저장공간을 보호하도록 설정했습니다.':'이 브라우저는 자동 정리 보호를 허용하지 않았습니다. 백업 파일을 별도로 저장하세요.');
     }catch{setStatus('브라우저 저장 보호를 설정하지 못했습니다. 백업 파일을 별도로 저장하세요.')}
   }
-  function download(){
+  async function download(){
     const date=new Date();
     const backup=currentBackup();
+    const name='근육지도-백업-'+date.toISOString().slice(0,19).replaceAll(':','')+'.json';
+    if(isNative()){
+      try{
+        await shareBackupFile(name,JSON.stringify(backup,null,2));
+        setStatus('백업 파일을 공유했습니다. 선택한 곳(드라이브, 내 파일 등)에 저장됐는지 확인하세요.');
+      }catch(e){
+        setStatus(/cancel/i.test(e?.message||'')?'저장을 취소했습니다. 백업 파일이 만들어지지 않았어요.':'백업 파일을 만들지 못했습니다. 다시 시도하세요.');
+      }
+      return;
+    }
     const address=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}));
     const a=document.createElement('a');
-    a.href=address;a.download='근육지도-백업-'+date.toISOString().slice(0,19).replaceAll(':','')+'.json';
+    a.href=address;a.download=name;
     a.click();setTimeout(()=>URL.revokeObjectURL(address),1000);
     setStatus('백업 파일을 만들었습니다. 휴대폰의 다운로드 폴더를 확인하세요.');
   }

@@ -45,7 +45,7 @@ export function walkingText({minutes,speed,incline}){
   return [minutes+'분',speed!=null&&speed+' km/h',incline!=null&&'경사 '+incline+'%'].filter(Boolean).join(' · ');
 }
 
-export function summary(logs,id){const list=logs.filter(l=>l.ex===id&&Array.isArray(l.sets));return list.length?{max:Math.max(...list.flatMap(l=>l.sets.map(s=>s.kg))),last:list.slice().sort((a,b)=>b.time-a.time)[0]}:null}
+export function summary(logs,id){const list=logs.filter(l=>l.ex===id&&Array.isArray(l.sets));return list.length?{max:Math.max(...list.flatMap(l=>l.sets.map(s=>s.kg))),maxReps:Math.max(...list.flatMap(l=>l.sets.map(s=>s.reps))),last:list.slice().sort((a,b)=>b.time-a.time)[0]}:null}
 export function readiness(logs,key,prefs,catalog=exercises){const relevant=logs.filter(l=>{const e=catalog.find(x=>x.id===l.ex);return e && (e.p.includes(key)||e.s.includes(key))});return relevant.reduce((v,l)=>Math.max(v,l.time+(large.includes(key)?prefs.big:prefs.small)*3600000),0)}
 export const dateText=(t,clock=false)=>new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',weekday:'short',...(clock?{hour:'2-digit',minute:'2-digit',hour12:false}:{})}).format(t);
 export function localInput(t){const d=new Date(t);return new Date(t-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}

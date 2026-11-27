@@ -55,7 +55,6 @@ export function MobilityPanel({now,initialMove,onMuscle}){
               <StudyVisuals lesson={move} visuals={move.visuals} stretch={move.kind==='스트레칭'} onMuscle={onMuscle}/>
               {move.deep&&<p className="sub">{move.deep}</p>}
               {move.cue&&<p><strong>내 몸에서 확인하기</strong> {move.cue}</p>}
-              <a href={move.source} target="_blank" rel="noreferrer">참고 자료 열기</a>
               <button className="outline" type="button" aria-pressed={completed} onClick={()=>toggle(recordId)}>{completed?'오늘 완료 취소':'오늘 완료 표시'}</button>
             </div>}
           </article>;
