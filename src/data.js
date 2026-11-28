@@ -29,6 +29,7 @@ const rows=[
 export const exercises=rows.map(([name,en,gear,p,s],id)=>({id,name,en,gear,p:p.split(' '),s:s?s.split(' '):[]}));
 export const treadmill={id:'treadmill',name:'러닝머신',en:'Treadmill',gear:'유산소',p:[],s:[],aliases:'런닝머신 트레드밀 빠르게 걷기',cardio:true};
 exercises.push(
+  {id:'hip-thrust-machine',name:'힙 쓰러스트 머신',en:'Hip Thrust Machine',gear:'머신',p:['glutes'],s:['hams'],aliases:'힙 스러스트 힙쓰러스트 기구 글루트 드라이브 글루트 브릿지 머신 엉덩이 들기 둔근 큰볼기근 대둔근'},
   {id:'hip-abduction',name:'힙 어브덕션',en:'Hip Abduction',gear:'머신',p:['abductors'],s:[],aliases:'힙 애브덕션 힙 앱덕션 다리 벌리기 허벅지 바깥 엉덩이 옆 중간볼기근 중둔근 작은볼기근 소둔근'},
   treadmill
 );
