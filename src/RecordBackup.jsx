@@ -1,17 +1,15 @@
-import React,{useState} from 'react';
-import {Cloud,Download,Upload} from 'lucide-react';
+import React,{useEffect,useState} from 'react';
+import {Cloud,Download,RotateCcw,Trash2,Upload} from 'lucide-react';
 import {combineBackup,currentBackup,validatedBackup} from './recordBackup';
 import {writeRestored} from './recordStorage';
 import {isNative,shareBackupFile} from './native';
+import {DEFAULT_SYNC_URL,connectSync,deleteServerHistory,disconnectSync,onSyncChange,restoreServerHistory,scheduleSync,serverHistory,syncConfig,syncNow,syncStatus} from './sync';
 
 export function RecordBackup({onRestore}){
   const [pending,setPending]=useState(null);
   const [useBackupEdits,setUseBackupEdits]=useState(false);
   const [status,setStatus]=useState('');
   const [busy,setBusy]=useState(false);
-  const [url,setUrl]=useState('');
-  const [secret,setSecret]=useState('');
-  const [confirm,setConfirm]=useState(false);
   async function protectDeviceStorage(){
     try{
       const granted=await navigator.storage?.persist?.();
@@ -54,30 +52,9 @@ export function RecordBackup({onRestore}){
     try{
       const data=combineBackup(currentBackup(),pending,useBackupEdits);
       writeRestored(data);
+      scheduleSync();
       onRestore(data.workouts);
     }catch{setStatus('이 기기에 복원할 수 없었습니다. 공간을 확인하고 원본 파일을 보관하세요.')}
-  }
-  async function server(operation){
-    setConfirm(false);
-    let address;
-    try{
-      address=new URL(url.trim());
-      if(address.protocol!=='https:'||address.username||address.password||!secret.trim())throw new Error();
-    }catch{setStatus('HTTPS 웹훅 주소와 개인 인증키를 입력하세요.');return}
-    setBusy(true);setStatus('');
-    if(operation==='restore')setPending(null);
-    try{
-      const payload=operation==='backup'?{operation,backup:currentBackup()}:{operation};
-      const response=await fetch(address,{method:'POST',redirect:'error',headers:{'Content-Type':'application/json','X-Backup-Key':secret.trim()},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      const result=await response.json();
-      if(operation==='restore')preview(result.backup);
-      else{
-        if(result.saved!==true)throw new Error('서버 저장 확인 응답이 없습니다.');
-        setStatus('n8n이 백업 저장을 확인했습니다.');
-      }
-    }catch(e){setStatus('서버 연결을 완료하지 못했습니다. 주소·인증·CORS와 n8n 실행 기록을 확인하세요. '+e.message)}
-    finally{setBusy(false)}
   }
   return <div className="backupPanel">
     <p className="sub">운동·걷기 기록, 사용자 기구와 사진, 안정화·스트레칭·관찰 기록 및 설정을 한 파일로 보관합니다.</p>
@@ -91,23 +68,64 @@ export function RecordBackup({onRestore}){
       <label><input type="checkbox" checked={useBackupEdits} onChange={event=>setUseBackupEdits(event.target.checked)}/> 같은 기록의 수정 내용도 백업 기준으로 복원</label>
       <button className="outline wide" type="button" onClick={apply}>기록에 합치기</button>
     </section>}
-    <details className="backupServer"><summary><Cloud size={17}/> VPS · n8n 백업 연결</summary>
-      <p>개인 웹훅을 준비한 뒤 연결하세요. 인증키는 이 화면을 닫으면 저장되지 않습니다.</p>
-      <label>HTTPS 웹훅 주소<input type="url" value={url} onChange={e=>{setUrl(e.target.value);setConfirm(false)}} placeholder="https://…/webhook/…"/></label>
-      <label>개인 인증키<input type="password" autoComplete="off" value={secret} onChange={e=>{setSecret(e.target.value);setConfirm(false)}}/></label>
-      <div className="backupActions">
-        <button className="outline" type="button" disabled={busy} onClick={()=>setConfirm(true)}>서버에 백업</button>
-        <button className="outline" type="button" disabled={busy} onClick={()=>server('restore')}>서버 백업 열기</button>
-      </div>
-      {confirm&&<div className="backupReview"><p>입력한 서버 주소로 위에 설명한 백업 전체를 보냅니다.</p><button type="button" className="cta wide" onClick={()=>server('backup')}>이 주소로 보내기</button></div>}
-      <details><summary>n8n 연결 규격</summary>
-        <p>활성화한 HTTPS POST 웹훅에 Header Auth <code>X-Backup-Key</code>를 설정하고, 허용 출처에 이 앱 주소 <code>{location.origin}</code>를 지정하세요.</p>
-        <p><code>operation: "backup"</code>이면 <code>body.backup</code>을 VPS의 데이터베이스나 영구 볼륨에 새 백업으로 저장한 뒤 <code>{'{"saved":true}'}</code>를 응답하세요.</p>
-        <p><code>operation: "restore"</code>이면 가장 최근 백업을 <code>{'{"backup": …}'}</code> 형태로 응답하세요. 서버 보존과 별도 백업 정책은 VPS에 설정합니다.</p>
-        <a href="https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/" target="_blank" rel="noreferrer">n8n Webhook 설정 문서</a>
-      </details>
-    </details>
+    <ServerSync onRestore={onRestore}/>
     {busy&&<p role="status">서버에 연결하는 중입니다.</p>}
     {status&&<p className="backupStatus" role="status">{status}</p>}
   </div>;
+}
+
+const when=t=>new Date(t).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+function ServerSync({onRestore}){
+  const [config,setConfig]=useState(syncConfig());
+  const [state,setState]=useState(syncStatus());
+  const [url,setUrl]=useState(config.url||DEFAULT_SYNC_URL);
+  const [key,setKey]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [message,setMessage]=useState('');
+  const [history,setHistory]=useState(null);
+  const [ask,setAsk]=useState(null);
+  useEffect(()=>onSyncChange(()=>{setConfig(syncConfig());setState(syncStatus())}),[]);
+  async function run(job){setBusy(true);setMessage('');try{await job()}catch(e){setMessage(e.message||'서버에 연결하지 못했어요.')}finally{setBusy(false)}}
+  const connect=()=>run(async()=>{
+    if(!/^https:\/\//.test(url.trim())||!key.trim())throw new Error('서버 주소(https://…)와 인증키를 입력하세요.');
+    await connectSync(url,key);setKey('');
+  });
+  const loadHistory=()=>run(async()=>setHistory(await serverHistory()));
+  const restore=rev=>run(async()=>{const data=await restoreServerHistory(rev);onRestore(data.workouts);setAsk(null);setHistory(await serverHistory())});
+  const remove=rev=>run(async()=>{await deleteServerHistory(rev);setAsk(null);setHistory(await serverHistory())});
+  const connected=!!(config.url&&config.key);
+  return <section className="backupServer backupReview" aria-label="VPS 자동 저장">
+    <strong><Cloud size={17}/> VPS 자동 저장</strong>
+    {!connected?<>
+      <p>연결하면 운동 기록을 추가·수정·삭제할 때마다 서버에 자동으로 저장합니다. 앱을 지우고 다시 깔아도 연결만 하면 기록이 돌아와요.</p>
+      <label>서버 주소<input type="url" value={url} onChange={e=>setUrl(e.target.value)}/></label>
+      <label>인증키<input type="password" autoComplete="off" value={key} onChange={e=>setKey(e.target.value)} placeholder="받은 인증키를 입력하세요"/></label>
+      <button className="cta wide" type="button" disabled={busy} onClick={connect}>연결하고 자동 저장 켜기</button>
+    </>:<>
+      <p>{state.message||(config.lastSync?'마지막 저장: '+when(config.lastSync):'연결됨')}{config.dirty&&state.state!=='saving'?' · 아직 저장 안 된 변경이 있어요':''}</p>
+      <div className="backupActions">
+        <button className="outline" type="button" disabled={busy} onClick={()=>run(()=>syncNow('manual'))}>지금 저장</button>
+        <button className="outline" type="button" disabled={busy} onClick={loadHistory}>저장 기록 보기</button>
+      </div>
+      {history&&<ul className="syncHistory">
+        {history.items.map(item=><li key={item.rev}>
+          <div><b>{when(item.savedAt)}</b><small>운동 {item.counts.logs}건 · 기구 {item.counts.custom}개 · 동작 {item.counts.mobility}건{item.rev===history.current?' · 현재':''}</small></div>
+          {item.rev!==history.current&&<span>
+            <button className="textbtn" type="button" aria-label="이 시점으로 되돌리기" onClick={()=>setAsk({rev:item.rev,what:'restore',item})}><RotateCcw size={16}/></button>
+            <button className="textbtn" type="button" aria-label="이 저장 기록 삭제" onClick={()=>setAsk({rev:item.rev,what:'delete',item})}><Trash2 size={16}/></button>
+          </span>}
+        </li>)}
+        {!history.items.length&&<li>아직 저장된 기록이 없어요.</li>}
+      </ul>}
+      {ask&&<div className="backupReview">
+        <p>{ask.what==='restore'?when(ask.item.savedAt)+' 시점(운동 '+ask.item.counts.logs+'건)으로 이 기기 기록을 바꿀까요? 지금 기록도 서버 저장 기록에 남아 있어 다시 되돌릴 수 있어요.':when(ask.item.savedAt)+' 저장 기록을 서버에서 지울까요? 지운 저장 기록은 되돌릴 수 없어요.'}</p>
+        <div className="backupActions">
+          <button className="cta" type="button" disabled={busy} onClick={()=>ask.what==='restore'?restore(ask.rev):remove(ask.rev)}>{ask.what==='restore'?'되돌리기':'지우기'}</button>
+          <button className="outline" type="button" onClick={()=>setAsk(null)}>취소</button>
+        </div>
+      </div>}
+      <button className="textbtn" type="button" onClick={()=>{disconnectSync();setHistory(null)}}>이 기기 연결 끊기</button>
+    </>}
+    {message&&<p className="backupStatus" role="status">{message}</p>}
+  </section>;
 }

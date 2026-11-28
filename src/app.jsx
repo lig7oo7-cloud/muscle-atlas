@@ -14,6 +14,7 @@ import {Recommendations} from './Recommendations';
 import {useAppInstall} from './useAppInstall';
 import {WalkingForm} from './WalkingForm';
 import {RecordBackup} from './RecordBackup';
+import {pullOnStart} from './sync';
 import {readSaved,writeSaved,recoverMissingRecords,workoutKey} from './recordStorage';
 import {guides} from './guides';
 import {onBackButton,isNative} from './native';
@@ -158,5 +159,5 @@ return <><header className="top"><div className="shell flex items-center justify
 {muscleExercise&&<Modal title={muscleExercise.name} close={()=>setMuscleExercise(null)}><ExerciseMuscles exercise={muscleExercise} onOpen={openMuscle}/></Modal>}
 {muscleCard&&<MuscleCard muscle={muscleCard.muscle} fromExercise={muscleCard.exercise} catalog={exercises} close={()=>setMuscleCard(null)}/>}
 {toast&&<div className="toast" role="status">{toast}</div>}</>}
-void recoverMissingRecords().finally(()=>createRoot(document.querySelector('#root')).render(<App/>));
+void recoverMissingRecords().then(()=>Promise.race([pullOnStart().catch(()=>{}),new Promise(r=>setTimeout(r,6000))])).finally(()=>createRoot(document.querySelector('#root')).render(<App/>));
 if('serviceWorker' in navigator&&!window.Capacitor?.isNativePlatform?.())window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));

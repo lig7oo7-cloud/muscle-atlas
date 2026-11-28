@@ -39,6 +39,7 @@ export function writeSaved(key,value){
   const raw=JSON.stringify(value);
   localStorage.setItem(key,raw);
   mirror(key,raw);
+  globalThis.dispatchEvent?.(new Event('muscle-records-changed'));
 }
 export function writeRestored(data){
   const before=keys.map(key=>localStorage.getItem(key));

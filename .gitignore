@@ -4,3 +4,5 @@ dist/
 android/
 *.jks
 *.keystore
+server/.env
+server/data/
